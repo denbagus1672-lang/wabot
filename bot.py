@@ -1,5 +1,4 @@
 import random
-import sqlite3
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -80,6 +79,40 @@ async def beli(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(teks)
 
+async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Anda bukan admin!")
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "Format salah!\n\n"
+            "Cara pakai:\n"
+            "/kirim [ID_USER] [NOMOR_WA]\n\n"
+            "Contoh:\n"
+            "/kirim 123456789 628123456789")
+        return
+
+    user_id = context.args[0]
+    nomor_wa = context.args[1]
+
+    try:
+        await context.bot.send_message(
+            chat_id=int(user_id),
+            text=(
+                "✅ Pembayaran Dikonfirmasi!\n\n"
+                "Berikut nomor WA Badak Anda:\n\n"
+                f"📱 {nomor_wa}\n\n"
+                "Garansi sesuai paket yang dibeli.\n"
+                "Jika ada masalah hubungi admin.\n\n"
+                "Terima kasih telah berbelanja! 🙏"
+            ))
+        await update.message.reply_text(
+            f"✅ Nomor berhasil dikirim ke user {user_id}!")
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Gagal kirim ke user {user_id}!\nError: {e}")
+
 async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     order_info = ORDERS.get(user.id)
@@ -103,7 +136,8 @@ async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📦 Paket: {paket}\n"
             f"💰 Harga: Rp {harga:,}\n"
             f"🔖 Order ID: #{order_id}\n\n"
-            "Cek bukti di atas lalu kirim nomor ke user!"
+            "Untuk kirim nomor ke customer:\n"
+            f"/kirim {user.id} NOMOR_WA_BADAK"
         ))
 
     await update.message.reply_text(
@@ -123,6 +157,7 @@ def main():
     app.add_handler(CommandHandler("beli1", beli))
     app.add_handler(CommandHandler("beli2", beli))
     app.add_handler(CommandHandler("beli3", beli))
+    app.add_handler(CommandHandler("kirim", kirim))
     app.add_handler(MessageHandler(filters.PHOTO, terima_bukti))
     print("✅ Bot WA Badak Store sedang berjalan...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

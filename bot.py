@@ -11,9 +11,9 @@ ADMIN_USERNAME = "Galtzyyo"
 CHANNEL_TESTI = "RanggaShoping"
 
 PAKET = {
-    "p1": {"nama": "WA Badak Garansi 7 Hari", "deskripsi": "Max Spam 500 Nomor", "harga": 150000, "garansi": "7 Hari", "emoji": "🔥"},
-    "p2": {"nama": "WA Badak + Verif Garansi 3 Bulan", "deskripsi": "Max Spam 1000 Nomor", "harga": 300000, "garansi": "3 Bulan", "emoji": "💎"},
-    "p3": {"nama": "WA Badak + Api + Verif + FBM Garansi 5 Bulan", "deskripsi": "Max Spam 1500 Nomor", "harga": 500000, "garansi": "5 Bulan", "emoji": "👑"},
+    "A": {"nama": "WA Badak Garansi 7 Hari", "deskripsi": "Max Spam 500 Nomor", "harga": 150000, "garansi": "7 Hari", "emoji": "🔥"},
+    "B": {"nama": "WA Badak + Verif Garansi 3 Bulan", "deskripsi": "Max Spam 1000 Nomor", "harga": 300000, "garansi": "3 Bulan", "emoji": "💎"},
+    "C": {"nama": "WA Badak + Api + Verif + FBM Garansi 5 Bulan", "deskripsi": "Max Spam 1500 Nomor", "harga": 500000, "garansi": "5 Bulan", "emoji": "👑"},
 }
 
 def init_db():
@@ -70,30 +70,29 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for k, p in PAKET.items():
             keyboard.append([InlineKeyboardButton(
                 f"{p['emoji']} {p['nama']} - Rp {p['harga']:,}",
-                callback_data="detail" + k)])
+                callback_data="DT" + k)])
         keyboard.append([InlineKeyboardButton("🔙 Kembali", callback_data="menu")])
         await query.edit_message_text(
             "🛒 *Pilih Paket WA Badak:*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif data.startswith("detail"):
-        k = data.replace("detail", "")
+    elif data.startswith("DT"):
+        k = data[2:]
         p = PAKET[k]
         await query.edit_message_text(
             f"{p['emoji']} *{p['nama']}*\n\n"
             f"📱 {p['deskripsi']}\n"
             f"⏱ Garansi: *{p['garansi']}*\n"
-            f"💰 Harga: *Rp {p['harga']:,}*",
+            f"💰 Harga: *Rp {p['harga']:,}*\n\n"
+            f"Lanjutkan pembelian?",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Beli Sekarang", callback_data="beli" + k)],
+                [InlineKeyboardButton("✅ Beli Sekarang", callback_data="BY" + k)],
                 [InlineKeyboardButton("🔙 Kembali", callback_data="produk")]]))
 
-    elif data.startswith("beli"):
-        k = data.replace("beli", "")
-        if k not in PAKET:
-            return
+    elif data.startswith("BY"):
+        k = data[2:]
         p = PAKET[k]
         order_id = simpan_order(user.id, user.username or "", p['nama'], p['harga'])
         context.user_data["order_id"] = order_id
@@ -108,17 +107,17 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💳 No. Rek: `{NOMOR_REKENING}`\n"
             f"👤 Atas Nama: *{NAMA_REKENING}*\n\n"
             f"📸 Kirim *foto bukti transfer* ke bot ini setelah transfer.\n"
-            f"Admin akan mengkonfirmasi dan mengirim nomor Anda.\n\n"
+            f"Admin akan konfirmasi dan kirim nomor Anda.\n\n"
             f"🔖 Order ID: *#{order_id}*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Kembali", callback_data="produk")]]))
 
-    elif data.startswith("acc"):
+    elif data.startswith("OK"):
         if user.id != ADMIN_ID:
             await query.answer("❌ Bukan admin!", show_alert=True)
             return
-        parts = data.replace("acc", "").split("x")
+        parts = data[2:].split("Z")
         uid = int(parts[0])
         order_id = parts[1]
         await context.bot.send_message(
@@ -150,7 +149,7 @@ async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Konfirmasi Order",
-             callback_data="acc" + str(user.id) + "x" + str(order_id))]
+             callback_data="OK" + str(user.id) + "Z" + str(order_id))]
         ]))
     await update.message.reply_text(
         f"✅ *Bukti transfer terkirim ke admin!*\n\n"

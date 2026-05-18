@@ -2,9 +2,6 @@ import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# ================================
-# KONFIGURASI
-# ================================
 TOKEN = "8956798122:AAFLWjr-HA0dLQwll5EPPcQk1WJ-Z8lTz-Y"
 ADMIN_ID = 8123373116
 NOMOR_REKENING = "901727395930"
@@ -19,9 +16,6 @@ PAKET = {
     "p3": {"nama": "WA Badak + Api + Verif + FBM Garansi 5 Bulan", "deskripsi": "Max Spam 1500 Nomor", "harga": 500000, "garansi": "5 Bulan", "emoji": "👑"},
 }
 
-# ================================
-# DATABASE
-# ================================
 def init_db():
     conn = sqlite3.connect("wabot.db")
     c = conn.cursor()
@@ -42,9 +36,6 @@ def simpan_order(user_id, username, paket, harga):
     conn.close()
     return order_id
 
-# ================================
-# MENU
-# ================================
 def menu_utama():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛒 Produk", callback_data="produk")],
@@ -52,19 +43,15 @@ def menu_utama():
          InlineKeyboardButton("📞 Admin", url=f"https://t.me/{ADMIN_USERNAME}")]
     ])
 
-# ================================
-# HANDLERS
-# ================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(
         f"🔥 *Selamat Datang di WA Badak Store!*\n\n"
         f"Halo {user.first_name}! 👋\n\n"
-        f"Kami menyediakan Nomor WA Badak berkualitas tinggi untuk kebutuhan blast & spamming.\n\n"
+        f"Kami menyediakan Nomor WA Badak berkualitas tinggi.\n\n"
         f"Pilih menu di bawah ini:",
         parse_mode="Markdown",
-        reply_markup=menu_utama()
-    )
+        reply_markup=menu_utama())
 
 async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -74,22 +61,24 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "menu":
         await query.edit_message_text(
-            "🔥 *WA Badak Store*\n\nPilih menu di bawah ini:",
+            "🔥 *WA Badak Store*\n\nPilih menu:",
             parse_mode="Markdown",
             reply_markup=menu_utama())
 
     elif data == "produk":
-        keyboard = [[InlineKeyboardButton(
-            f"{p['emoji']} {p['nama']} — Rp {p['harga']:,}", callback_data=f"detail|{k}")]
-            for k, p in PAKET.items()]
+        keyboard = []
+        for k, p in PAKET.items():
+            keyboard.append([InlineKeyboardButton(
+                f"{p['emoji']} {p['nama']} - Rp {p['harga']:,}",
+                callback_data="detail" + k)])
         keyboard.append([InlineKeyboardButton("🔙 Kembali", callback_data="menu")])
         await query.edit_message_text(
             "🛒 *Pilih Paket WA Badak:*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif data.startswith("detail|"):
-        k = data.split("|")[1]
+    elif data.startswith("detail"):
+        k = data.replace("detail", "")
         p = PAKET[k]
         await query.edit_message_text(
             f"{p['emoji']} *{p['nama']}*\n\n"
@@ -98,11 +87,13 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 Harga: *Rp {p['harga']:,}*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Beli Sekarang", callback_data=f"beli|{k}")],
+                [InlineKeyboardButton("✅ Beli Sekarang", callback_data="beli" + k)],
                 [InlineKeyboardButton("🔙 Kembali", callback_data="produk")]]))
 
-    elif data.startswith("beli|"):
-        k = data.split("|")[1]
+    elif data.startswith("beli"):
+        k = data.replace("beli", "")
+        if k not in PAKET:
+            return
         p = PAKET[k]
         order_id = simpan_order(user.id, user.username or "", p['nama'], p['harga'])
         context.user_data["order_id"] = order_id
@@ -116,12 +107,29 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🏦 Bank: *{BANK}*\n"
             f"💳 No. Rek: `{NOMOR_REKENING}`\n"
             f"👤 Atas Nama: *{NAMA_REKENING}*\n\n"
-            f"📸 Setelah transfer, kirim *foto bukti transfer* ke bot ini.\n"
+            f"📸 Kirim *foto bukti transfer* ke bot ini setelah transfer.\n"
             f"Admin akan mengkonfirmasi dan mengirim nomor Anda.\n\n"
             f"🔖 Order ID: *#{order_id}*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Kembali", callback_data="produk")]]))
+
+    elif data.startswith("acc"):
+        if user.id != ADMIN_ID:
+            await query.answer("❌ Bukan admin!", show_alert=True)
+            return
+        parts = data.replace("acc", "").split("x")
+        uid = int(parts[0])
+        order_id = parts[1]
+        await context.bot.send_message(
+            chat_id=uid,
+            text=f"✅ *Pembayaran Dikonfirmasi!*\n\n"
+                 f"Order *#{order_id}* telah disetujui.\n"
+                 f"Nomor WA Badak Anda akan segera dikirim.\n\n"
+                 f"Terima kasih! 🙏",
+            parse_mode="Markdown")
+        await query.edit_message_text(
+            f"✅ Order #{order_id} dikonfirmasi. Notifikasi terkirim ke user.")
 
 async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -138,46 +146,25 @@ async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
              f"📦 Paket: {paket}\n"
              f"💰 Harga: Rp {harga:,}\n"
              f"🔖 Order ID: #{order_id}\n\n"
-             f"Cek bukti di atas lalu kirim nomor ke user!",
+             f"Tap tombol di bawah untuk konfirmasi!",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Konfirmasi Order", callback_data=f"acc|{user.id}|{order_id}")]
+            [InlineKeyboardButton("✅ Konfirmasi Order",
+             callback_data="acc" + str(user.id) + "x" + str(order_id))]
         ]))
     await update.message.reply_text(
-        f"✅ *Bukti transfer berhasil dikirim!*\n\n"
-        f"⏳ Admin sedang memproses order Anda.\n"
+        f"✅ *Bukti transfer terkirim ke admin!*\n\n"
+        f"⏳ Tunggu konfirmasi dari admin.\n"
         f"Nomor WA Badak akan segera dikirimkan.\n\n"
         f"Terima kasih! 🙏",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Menu Utama", callback_data="menu")]]))
 
-async def acc_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if update.effective_user.id != ADMIN_ID:
-        await query.answer("❌ Bukan admin!", show_alert=True)
-        return
-    parts = query.data.split("|")
-    uid = int(parts[1])
-    order_id = parts[2]
-    await context.bot.send_message(
-        chat_id=uid,
-        text=f"✅ *Pembayaran Dikonfirmasi!*\n\n"
-             f"Order *#{order_id}* telah disetujui admin.\n"
-             f"Nomor WA Badak Anda akan segera dikirim.\n\n"
-             f"Terima kasih telah berbelanja! 🙏",
-        parse_mode="Markdown")
-    await query.edit_message_text(f"✅ Order #{order_id} sudah dikonfirmasi. Notifikasi terkirim ke user.")
-
-# ================================
-# MAIN
-# ================================
 def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(acc_order, pattern="^acc|"))
     app.add_handler(CallbackQueryHandler(handler))
     app.add_handler(MessageHandler(filters.PHOTO, terima_bukti))
     print("✅ Bot WA Badak Store sedang berjalan...")

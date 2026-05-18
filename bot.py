@@ -202,14 +202,14 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 *Topup Saldo*\n\nPilih nominal topup:",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💵 Rp 150.000", callback_data="nominal_150000"),
-                 InlineKeyboardButton("💵 Rp 300.000", callback_data="nominal_300000")],
-                [InlineKeyboardButton("💵 Rp 500.000", callback_data="nominal_500000"),
-                 InlineKeyboardButton("💵 Rp 1.000.000", callback_data="nominal_1000000")],
+                [InlineKeyboardButton("💵 Rp 150.000", callback_data="nom|150000"),
+                 InlineKeyboardButton("💵 Rp 300.000", callback_data="nom|300000")],
+                [InlineKeyboardButton("💵 Rp 500.000", callback_data="nom|500000"),
+                 InlineKeyboardButton("💵 Rp 1.000.000", callback_data="nom|1000000")],
                 [InlineKeyboardButton("🔙 Kembali", callback_data="menu")]]))
 
-    elif data.startswith("nominal_"):
-        nominal = int(data.replace("nominal_", ""))
+    elif data.startswith("nom|"):
+        nominal = int(data.split("|")[1])
         topup_id = simpan_topup(user.id, nominal)
         await query.edit_message_text(
             f"💳 *Instruksi Topup*\n\n"
@@ -221,11 +221,11 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⚠️ Setelah transfer tap tombol di bawah lalu kirim bukti ke admin.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Saya Sudah Transfer", callback_data=f"ktopup_{topup_id}_{nominal}_{user.id}")],
+                [InlineKeyboardButton("✅ Saya Sudah Transfer", callback_data=f"kt|{topup_id}|{nominal}|{user.id}")],
                 [InlineKeyboardButton("🔙 Kembali", callback_data="topup")]]))
 
-    elif data.startswith("ktopup_"):
-        parts = data.split("_")
+    elif data.startswith("kt|"):
+        parts = data.split("|")
         topup_id = parts[1]
         nominal = int(parts[2])
         uid = int(parts[3])
@@ -239,7 +239,7 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  f"Cek bukti transfer lalu approve!",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"✅ Approve #{topup_id}", callback_data=f"approve_{topup_id}_{uid}_{nominal}")]]))
+                [InlineKeyboardButton(f"✅ Approve #{topup_id}", callback_data=f"ap|{topup_id}|{uid}|{nominal}")]]))
         await query.edit_message_text(
             f"✅ *Permintaan Topup Terkirim!*\n\n"
             f"Nominal: *Rp {nominal:,}*\n\n"
@@ -248,11 +248,11 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Menu Utama", callback_data="menu")]]))
 
-    elif data.startswith("approve_"):
+    elif data.startswith("ap|"):
         if user.id != ADMIN_ID:
             await query.answer("❌ Anda bukan admin!", show_alert=True)
             return
-        parts = data.split("_")
+        parts = data.split("|")
         topup_id = int(parts[1])
         uid = int(parts[2])
         jumlah = int(parts[3])

@@ -36,6 +36,14 @@ def simpan_order(user_id, username, paket, harga):
     conn.close()
     return order_id
 
+def get_order(order_id):
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM orders WHERE id=?", (order_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
 def menu_utama():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛒 Produk", callback_data="produk")],
@@ -95,9 +103,6 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         k = data[2:]
         p = PAKET[k]
         order_id = simpan_order(user.id, user.username or "", p['nama'], p['harga'])
-        context.user_data["order_id"] = order_id
-        context.user_data["paket"] = p['nama']
-        context.user_data["harga"] = p['harga']
         await query.edit_message_text(
             f"💳 *Instruksi Pembayaran*\n\n"
             f"📦 Paket: *{p['nama']}*\n"
@@ -106,12 +111,36 @@ async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🏦 Bank: *{BANK}*\n"
             f"💳 No. Rek: `{NOMOR_REKENING}`\n"
             f"👤 Atas Nama: *{NAMA_REKENING}*\n\n"
-            f"📸 Kirim *foto bukti transfer* ke bot ini setelah transfer.\n"
+            f"📸 Setelah transfer kirim *foto bukti transfer* ke bot ini.\n"
             f"Admin akan konfirmasi dan kirim nomor Anda.\n\n"
             f"🔖 Order ID: *#{order_id}*",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📸 Kirim Bukti Transfer", callback_data="BUKTI" + str(order_id) + "K" + k)],
                 [InlineKeyboardButton("🔙 Kembali", callback_data="produk")]]))
+
+    elif data.startswith("BUKTI"):
+        info = data[5:]
+        parts = info.split("K")
+        order_id = parts[0]
+        k = parts[1]
+        p = PAKET[k]
+        order = get_order(int(order_id))
+        await query.edit_message_text(
+            f"📸 *Kirim Bukti Transfer*\n\n"
+            f"Silakan kirim *foto bukti transfer* Anda sekarang.\n\n"
+            f"📦 Paket: *{p['nama']}*\n"
+            f"💰 Total: *Rp {p['harga']:,}*\n"
+            f"🔖 Order ID: *#{order_id}*\n\n"
+            f"⚠️ Kirim foto langsung di chat ini.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Kembali", callback_data="BY" + k)]]))
+        context.user_data["order_id"] = order_id
+        context.user_data["paket"] = p['nama']
+        context.user_data["harga"] = p['harga']
+        context.user_data["uid"] = user.id
+        context.user_data["username"] = user.username or ""
 
     elif data.startswith("OK"):
         if user.id != ADMIN_ID:

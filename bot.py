@@ -102,16 +102,66 @@ async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=(
                 "✅ Pembayaran Dikonfirmasi!\n\n"
                 "Berikut nomor WA Badak Anda:\n\n"
-                f"📱 {nomor_wa}\n\n"
-                "Garansi sesuai paket yang dibeli.\n"
-                "Jika ada masalah hubungi admin.\n\n"
+                f"📱 Nomor: {nomor_wa}\n\n"
+                "Silakan login WA menggunakan nomor di atas.\n"
+                "Jika butuh kode OTP ketik /minta_otp\n\n"
                 "Terima kasih telah berbelanja! 🙏"
             ))
         await update.message.reply_text(
             f"✅ Nomor berhasil dikirim ke user {user_id}!")
     except Exception as e:
         await update.message.reply_text(
-            f"❌ Gagal kirim ke user {user_id}!\nError: {e}")
+            f"❌ Gagal kirim! Error: {e}")
+
+async def minta_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    await update.message.reply_text(
+        "🔐 Request Kode OTP\n\n"
+        "Permintaan OTP Anda telah dikirim ke admin.\n"
+        "Tunggu beberapa saat, admin akan segera mengirimkan kode OTP Anda.")
+
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=(
+            "🔐 REQUEST OTP MASUK!\n\n"
+            f"👤 User: {user.first_name} (@{user.username})\n"
+            f"🆔 ID: {user.id}\n\n"
+            "Kirim OTP ke customer:\n"
+            f"/kirim_otp {user.id} KODE_OTP"
+        ))
+
+async def kirim_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Anda bukan admin!")
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "Format salah!\n\n"
+            "Cara pakai:\n"
+            "/kirim_otp [ID_USER] [KODE_OTP]\n\n"
+            "Contoh:\n"
+            "/kirim_otp 123456789 123456")
+        return
+
+    user_id = context.args[0]
+    kode_otp = context.args[1]
+
+    try:
+        await context.bot.send_message(
+            chat_id=int(user_id),
+            text=(
+                "🔐 Kode OTP WhatsApp Anda:\n\n"
+                f"🔑 {kode_otp}\n\n"
+                "Masukkan kode ini di WhatsApp Anda.\n"
+                "Jangan bagikan kode ini ke siapapun!\n\n"
+                "Kode OTP berlaku selama 60 detik."
+            ))
+        await update.message.reply_text(
+            f"✅ OTP berhasil dikirim ke user {user_id}!")
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Gagal kirim OTP! Error: {e}")
 
 async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -136,7 +186,7 @@ async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📦 Paket: {paket}\n"
             f"💰 Harga: Rp {harga:,}\n"
             f"🔖 Order ID: #{order_id}\n\n"
-            "Untuk kirim nomor ke customer:\n"
+            "Kirim nomor ke customer:\n"
             f"/kirim {user.id} NOMOR_WA_BADAK"
         ))
 
@@ -158,6 +208,8 @@ def main():
     app.add_handler(CommandHandler("beli2", beli))
     app.add_handler(CommandHandler("beli3", beli))
     app.add_handler(CommandHandler("kirim", kirim))
+    app.add_handler(CommandHandler("kirim_otp", kirim_otp))
+    app.add_handler(CommandHandler("minta_otp", minta_otp))
     app.add_handler(MessageHandler(filters.PHOTO, terima_bukti))
     print("✅ Bot WA Badak Store sedang berjalan...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

@@ -1,4 +1,6 @@
 import random
+from datetime import datetime
+import pytz
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -9,11 +11,12 @@ NAMA_REKENING = "CIT***"
 BANK = "SeaBank"
 ADMIN_USERNAME = "Galtzyyo"
 CHANNEL_TESTI = "@RanggaShoping"
+QRIS_URL = "https://raw.githubusercontent.com/denbagus1672-lang/wabot/master/ReactNative-snapshot-image3971213875209633470.png"
 
 PAKET = {
-    "1": {"nama": "WA Badak Garansi 7 Hari", "deskripsi": "Max Spam 500 Nomor", "harga": 150000, "garansi": "7 Hari", "emoji": "🔥"},
-    "2": {"nama": "WA Badak Verif Garansi 3 Bulan", "deskripsi": "Max Spam 1000 Nomor", "harga": 300000, "garansi": "3 Bulan", "emoji": "💎"},
-    "3": {"nama": "WA Badak Api Verif FBM Garansi 5 Bulan", "deskripsi": "Max Spam 1500 Nomor", "harga": 500000, "garansi": "5 Bulan", "emoji": "👑"},
+    "1": {"nama": "WA Badak Garansi 7 Hari", "deskripsi": "Max Spam 500 Nomor/Hari", "harga": 150000, "garansi": "7 Hari", "emoji": "🔥"},
+    "2": {"nama": "WA Badak Verif Garansi 3 Bulan", "deskripsi": "Max Spam 1000 Nomor/Hari", "harga": 300000, "garansi": "3 Bulan", "emoji": "💎"},
+    "3": {"nama": "WA Badak Api Verif FBM Garansi 5 Bulan", "deskripsi": "Max Spam 1500 Nomor/Hari", "harga": 500000, "garansi": "5 Bulan", "emoji": "👑"},
 }
 
 ORDERS = {}
@@ -40,6 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/beli1 - Beli Paket 1\n"
         "/beli2 - Beli Paket 2\n"
         "/beli3 - Beli Paket 3\n\n"
+        "/minta_otp - Request kode OTP\n\n"
         f"📢 Testimoni: t.me/RanggaShoping\n"
         f"📞 Admin: t.me/{ADMIN_USERNAME}"
     )
@@ -70,24 +74,55 @@ async def beli(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Garansi: {p['garansi']}\n"
         f"💰 Harga: Rp {p['harga']:,}\n\n"
         "━━━━━━━━━━━━━━━\n"
-        "💳 Instruksi Pembayaran:\n\n"
-        f"Bank: {BANK}\n"
-        f"No Rek: {NOMOR_REKENING}\n"
-        f"Atas Nama: {NAMA_REKENING}\n\n"
+        "💳 Pilih Metode Pembayaran:\n\n"
+        "/seabank - Transfer SeaBank\n"
+        "/qris - Bayar via QRIS\n\n"
         f"🔖 Order ID: #{order_id}\n\n"
-        "📸 Setelah transfer, kirim FOTO bukti transfer ke bot ini.\n"
-        "Admin akan konfirmasi dan kirim nomor Anda.\n\n"
         f"Ada pertanyaan? Hubungi @{ADMIN_USERNAME}"
     )
     await update.message.reply_text(teks)
+
+async def seabank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    order_info = ORDERS.get(user.id)
+    if not order_info:
+        await update.message.reply_text("Pilih paket dulu dengan /beli1, /beli2, atau /beli3")
+        return
+    teks = (
+        "🏦 Pembayaran via SeaBank\n\n"
+        f"📦 Paket: {order_info['paket']}\n"
+        f"💰 Total: Rp {order_info['harga']:,}\n\n"
+        "Transfer ke:\n"
+        f"Bank: {BANK}\n"
+        f"No Rek: {NOMOR_REKENING}\n"
+        f"Atas Nama: {NAMA_REKENING}\n\n"
+        f"🔖 Order ID: #{order_info['order_id']}\n\n"
+        "📸 Kirim FOTO bukti transfer ke bot ini setelah transfer."
+    )
+    await update.message.reply_text(teks)
+
+async def qris(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    order_info = ORDERS.get(user.id)
+    if not order_info:
+        await update.message.reply_text("Pilih paket dulu dengan /beli1, /beli2, atau /beli3")
+        return
+    caption = (
+        "🔳 Pembayaran via QRIS\n\n"
+        f"📦 Paket: {order_info['paket']}\n"
+        f"💰 Total: Rp {order_info['harga']:,}\n\n"
+        "Scan QR di atas lalu masukkan nominal sesuai harga paket.\n\n"
+        f"🔖 Order ID: #{order_info['order_id']}\n\n"
+        "📸 Kirim FOTO bukti pembayaran ke bot ini setelah bayar."
+    )
+    await update.message.reply_photo(photo=QRIS_URL, caption=caption)
 
 async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("Bukan admin!")
         return
     if len(context.args) < 2:
-        await update.message.reply_text(
-            "Cara pakai:\n/kirim [ID_USER] [NOMOR_WA]")
+        await update.message.reply_text("Cara pakai:\n/kirim [ID_USER] [NOMOR_WA]")
         return
     user_id = int(context.args[0])
     nomor_wa = context.args[1]
@@ -107,9 +142,7 @@ async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def minta_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(
-        "🔐 Request OTP dikirim ke admin.\n"
-        "Tunggu sebentar ya!")
+    await update.message.reply_text("🔐 Request OTP dikirim ke admin. Tunggu sebentar!")
     await context.bot.send_message(
         chat_id=ADMIN_ID,
         text=(
@@ -125,8 +158,7 @@ async def kirim_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Bukan admin!")
         return
     if len(context.args) < 2:
-        await update.message.reply_text(
-            "Cara pakai:\n/kirim_otp [ID_USER] [KODE_OTP]")
+        await update.message.reply_text("Cara pakai:\n/kirim_otp [ID_USER] [KODE_OTP]")
         return
     user_id = int(context.args[0])
     kode_otp = context.args[1]
@@ -148,8 +180,8 @@ async def kirim_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         paket = order_info.get("paket", "")
         harga = order_info.get("harga", 0)
 
-        from datetime import datetime
-        waktu = datetime.now().strftime("%d-%m-%Y %H:%M")
+        wib = pytz.timezone("Asia/Jakarta")
+        waktu = datetime.now(wib).strftime("%d-%m-%Y %H:%M")
         bot_info = await context.bot.get_me()
 
         try:
@@ -207,6 +239,8 @@ def main():
     app.add_handler(CommandHandler("beli1", beli))
     app.add_handler(CommandHandler("beli2", beli))
     app.add_handler(CommandHandler("beli3", beli))
+    app.add_handler(CommandHandler("seabank", seabank))
+    app.add_handler(CommandHandler("qris", qris))
     app.add_handler(CommandHandler("kirim", kirim))
     app.add_handler(CommandHandler("kirim_otp", kirim_otp))
     app.add_handler(CommandHandler("minta_otp", minta_otp))

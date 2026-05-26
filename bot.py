@@ -1,4 +1,5 @@
 import random
+import sqlite3
 from datetime import datetime
 import pytz
 from telegram import Update
@@ -22,8 +23,73 @@ PAKET = {
 ORDERS = {}
 USER_INFO = {}
 
+def init_db():
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        nama TEXT,
+        waktu TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        username TEXT,
+        paket TEXT,
+        harga INTEGER,
+        status TEXT DEFAULT "pending",
+        waktu TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    conn.commit()
+    conn.close()
+
+def register_user(user_id, username, nama):
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users (user_id, username, nama) VALUES (?,?,?)",
+              (user_id, username, nama))
+    conn.commit()
+    conn.close()
+
+def simpan_order(user_id, username, paket, harga):
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO orders (user_id, username, paket, harga) VALUES (?,?,?,?)",
+              (user_id, username, paket, harga))
+    conn.commit()
+    conn.close()
+
+def selesai_order(user_id):
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute("UPDATE orders SET status='selesai' WHERE user_id=? AND status='pending'", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_statistik():
+    conn = sqlite3.connect("wabot.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    total_user = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM orders")
+    total_order = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM orders WHERE status='selesai'")
+    total_selesai = c.fetchone()[0]
+    c.execute("SELECT SUM(harga) FROM orders WHERE status='selesai'")
+    total_income = c.fetchone()[0] or 0
+    wib = pytz.timezone("Asia/Jakarta")
+    today = datetime.now(wib).strftime("%Y-%m-%d")
+    c.execute("SELECT COUNT(*) FROM orders WHERE waktu LIKE ?", (f"{today}%",))
+    order_hari_ini = c.fetchone()[0]
+    c.execute("SELECT SUM(harga) FROM orders WHERE status='selesai' AND waktu LIKE ?", (f"{today}%",))
+    income_hari_ini = c.fetchone()[0] or 0
+    c.execute("SELECT COUNT(*) FROM users WHERE waktu LIKE ?", (f"{today}%",))
+    user_baru = c.fetchone()[0]
+    conn.close()
+    return total_user, total_order, total_selesai, total_income, order_hari_ini, income_hari_ini, user_baru
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    register_user(user.id, user.username or "", user.first_name)
     teks = (
         "🔥 Selamat Datang di WA Badak Store!\n\n"
         f"Halo {user.first_name}! 👋\n\n"
@@ -67,6 +133,7 @@ async def beli(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order_id = random.randint(10000, 99999)
     ORDERS[user.id] = {"paket": p["nama"], "harga": p["harga"], "order_id": order_id}
     USER_INFO[user.id] = {"username": user.username or "", "nama": user.first_name}
+    simpan_order(user.id, user.username or "", p["nama"], p["harga"])
 
     teks = (
         f"{p['emoji']} {p['nama']}\n\n"
@@ -117,6 +184,29 @@ async def qris(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_photo(photo=QRIS_URL, caption=caption)
 
+async def statistik(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("Bukan admin!")
+        return
+    total_user, total_order, total_selesai, total_income, order_hari_ini, income_hari_ini, user_baru = get_statistik()
+    wib = pytz.timezone("Asia/Jakarta")
+    waktu = datetime.now(wib).strftime("%d-%m-%Y %H:%M")
+    teks = (
+        "📊 STATISTIK BOT\n\n"
+        f"👥 Total Pengguna: {total_user}\n"
+        f"🆕 Pengguna Baru Hari Ini: {user_baru}\n"
+        f"🛒 Total Order Masuk: {total_order}\n"
+        f"✅ Order Selesai: {total_selesai}\n"
+        f"⏳ Order Pending: {total_order - total_selesai}\n"
+        f"💰 Total Pemasukan: Rp {total_income:,}\n\n"
+        "━━━━━━━━━━━━━━━\n"
+        "📅 Hari Ini:\n"
+        f"🛒 Order: {order_hari_ini}\n"
+        f"💰 Pemasukan: Rp {income_hari_ini:,}\n\n"
+        f"🕐 Update: {waktu} WIB"
+    )
+    await update.message.reply_text(teks)
+
 async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("Bukan admin!")
@@ -136,6 +226,7 @@ async def kirim(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Jika butuh kode OTP ketik /minta_otp\n\n"
                 "Terima kasih! 🙏"
             ))
+        selesai_order(user_id)
         await update.message.reply_text(f"✅ Nomor berhasil dikirim ke user {user_id}!")
     except Exception as e:
         await update.message.reply_text(f"Gagal kirim! Error: {e}")
@@ -192,7 +283,7 @@ async def kirim_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👤 Customer: {'@' + username if username else 'Customer'}\n"
                     f"📦 Paket: {paket}\n"
                     f"💰 Harga: Rp {harga:,}\n"
-                    f"🕐 {waktu}\n\n"
+                    f"🕐 {waktu} WIB\n\n"
                     "Bergabung dan order sekarang!\n"
                     f"t.me/{bot_info.username}"
                 ))
@@ -234,6 +325,7 @@ async def terima_bukti(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Terima kasih! 🙏")
 
 def main():
+    init_db()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("beli1", beli))
@@ -244,6 +336,7 @@ def main():
     app.add_handler(CommandHandler("kirim", kirim))
     app.add_handler(CommandHandler("kirim_otp", kirim_otp))
     app.add_handler(CommandHandler("minta_otp", minta_otp))
+    app.add_handler(CommandHandler("statistik", statistik))
     app.add_handler(MessageHandler(filters.PHOTO, terima_bukti))
     print("✅ Bot WA Badak Store sedang berjalan...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
